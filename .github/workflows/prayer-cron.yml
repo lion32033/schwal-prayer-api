@@ -1,6 +1,36 @@
-- name: Änderungen committen und pushen
-           run: |
-             git config --global user.name "GitHub Action Bot"
-             git config --global user.email "action@github.com"
-             git add prayer-schwal.json mawaqit_page.html
-             git diff --quiet && git diff --staged --quiet || (git commit -m "Update prayer times and HTML [skip ci]" && git push)
+name: Daily Prayer Times Scraper
+
+on:
+  schedule:
+    - cron: '1 0 * * *'  # Läuft jeden Tag um 00:01 UTC
+  workflow_dispatch:      # Erlaubt manuellen Start über den Reiter "Actions"
+
+jobs:
+  update-prayer-times:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Python einrichten
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Abhängigkeiten installieren
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Skript ausführen
+        run: python prayer.py
+
+      - name: Änderungen committen und pushen
+        run: |
+          git config --global user.name "GitHub Action Bot"
+          git config --global user.email "action@github.com"
+          git add prayer-schwal.json mawaqit_page.html
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Update prayer times and HTML [skip ci]" && git push)
