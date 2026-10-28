@@ -20,7 +20,7 @@ def download_and_save_txt():
     response = requests.get(URL, headers=headers, timeout=20)
     response.raise_for_status()
 
-    # Speichert die Website als reine Textdatei im Projektordner
+    # Speichert die Website als reine Textdatei
     with open(TXT_FILE, "w", encoding="utf-8") as f:
       f.write(response.text)
     print(f"Website erfolgreich als '{TXT_FILE}' gespeichert.")
@@ -34,23 +34,53 @@ def extract_prayer_times(text_content):
   if not text_content:
     return None
 
-  prayer_names = ["Fajr", "Shuruk", "Dhuhr", "Asr", "Maghrib", "Isha"]
-  times_dict = {}
+  times_dict = {
+      "Fajr": "N/A",
+      "Shuruk": "N/A",
+      "Dhuhr": "N/A",
+      "Asr": "N/A",
+      "Maghrib": "N/A",
+      "Isha": "N/A",
+  }
 
-  # Extrahiert alle Uhrzeiten im Format HH:MM aus dem Text
-  all_times = re.findall(r"\b([0-2]\d:[0-5]\d)\b", text_content)
+  lines = [line.strip() for line in text_content.splitlines() if line.strip()]
 
-  # Duplikate filtern, Reihenfolge beibehalten
-  unique_times = []
-  for t in all_times:
-    if t not in unique_times:
-      unique_times.append(t)
+  # 1. Suche zeilenbasiert nach dem Gebetsnamen und der direkt folgenden Uhrzeit
+  for i, line in enumerate(lines):
+    l_upper = line.upper()
 
-  for idx, name in enumerate(prayer_names):
-    if idx < len(unique_times):
-      times_dict[name] = unique_times[idx]
-    else:
-      times_dict[name] = "N/A"
+    # Prüfen, ob die nächste Zeile eine gültige Uhrzeit (HH:MM) ist
+    if i + 1 < len(lines):
+      next_line = lines[i + 1]
+      if re.match(r"^[0-2]\d:[0-5]\d$", next_line):
+        if l_upper in ["SABAH", "FAJR"]:
+          times_dict["Fajr"] = next_line
+        elif "SHURUK" in l_upper:
+          times_dict["Shuruk"] = next_line
+        elif l_upper in ["DOHR", "DHUHR"]:
+          times_dict["Dhuhr"] = next_line
+        elif l_upper in ["ASSR", "ASR"]:
+          times_dict["Asr"] = next_line
+        elif "MAGHRIB" in l_upper:
+          times_dict["Maghrib"] = next_line
+        elif l_upper in ["ISHAA", "ISHA"]:
+          times_dict["Isha"] = next_line
+
+  # 2. Fallback: Falls Werte fehlen, in derselben Zeile suchen (z.B. "Shuruk 07:02")
+  for line in lines:
+    for name, keys in [
+        ("Fajr", ["Sabah", "Fajr"]),
+        ("Shuruk", ["Shuruk"]),
+        ("Dhuhr", ["Dohr", "Dhuhr"]),
+        ("Asr", ["Assr", "Asr"]),
+        ("Maghrib", ["Maghrib"]),
+        ("Isha", ["Ishaa", "Isha"]),
+    ]:
+      if times_dict[name] == "N/A":
+        for k in keys:
+          match = re.search(rf"\b{k}\b\D+([0-2]\d:[0-5]\d)", line, re.IGNORECASE)
+          if match:
+            times_dict[name] = match.group(1)
 
   prayer_data = {
       "mosque": "Al-Birr Schwalbach",
