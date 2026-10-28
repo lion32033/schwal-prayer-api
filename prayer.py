@@ -36,31 +36,34 @@ def fetch_prayer_times():
   try:
     conf_data = json.loads(match.group(1))
 
-    # Mawaqit speichert die Zeiten meistens in 'times' als Liste von Tagen.
-    # Manchmal ist es eine Liste von Listen oder ein Objekt. Schauen wir nach dem heutigen Tag.
-    times_data = conf_data.get("times", [])
-    today_day_idx = datetime.now().day - 1  # 0-basierter Index für den Monatstag
+    # Debug-Ausgabe für die Logs
+    print("Verfügbare confData Schlüssel:", list(conf_data.keys()))
 
-    today_times = []
-    if isinstance(times_data, list) and len(times_data) > 0:
-      if today_day_idx < len(times_data):
-        raw_today = times_data[today_day_idx]
-        # Falls es eine Liste von Zeiten für den Tag ist:
-        if isinstance(raw_today, list):
-          today_times = raw_today
-        elif isinstance(raw_today, dict):
-          # Manchmal ist es ein Dictionary
-          today_times = list(raw_today.values())
-
-    # Fallraum, falls die Struktur anders verschachtelt ist:
-    # Mawaqit Standard-Reihenfolge der Gebete: [Fajr, Shuruk (Sonnenaufgang), Dhuhr, Asr, Maghrib, Isha]
     prayer_names = ["Fajr", "Shuruk", "Dhuhr", "Asr", "Maghrib", "Isha"]
     times_dict = {}
 
-    for idx, name in enumerate(prayer_names):
-      if idx < len(today_times) and isinstance(today_times[idx], str):
-        times_dict[name] = today_times[idx]
-      else:
+    # 1. Prüfen, ob 'times' direkt als Liste/Array existiert
+    times_data = conf_data.get("times", [])
+    today_day_idx = datetime.now().day - 1
+
+    if isinstance(times_data, list) and len(times_data) > 0:
+      if today_day_idx < len(times_data):
+        day_entry = times_data[today_day_idx]
+        if isinstance(day_entry, list) and len(day_entry) >= len(prayer_names):
+          for idx, name in enumerate(prayer_names):
+            times_dict[name] = day_entry[idx]
+
+    # 2. Falls times_dict leer ist, prüfen wir alternative Schlüssel in confData
+    if not times_dict:
+      for name in prayer_names:
+        # Suche nach keys die den Gebetsnamen enthalten
+        for k, v in conf_data.items():
+          if name.lower() in k.lower() and isinstance(v, str):
+            times_dict[name] = v
+
+    # Fallback, falls absolut nichts gefunden wurde
+    if not times_dict:
+      for name in prayer_names:
         times_dict[name] = "N/A"
 
     prayer_data = {
@@ -79,8 +82,7 @@ def fetch_prayer_times():
 
 
 def save_to_json(data):
-  if not data or not data.get("times"):
-    print("Keine gültigen Zeiten gefunden. JSON wird nicht überschrieben.")
+  if not data:
     return
   with open(JSON_FILE, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=4)
