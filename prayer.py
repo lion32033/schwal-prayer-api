@@ -34,40 +34,35 @@ def fetch_prayer_times():
     return None
 
   try:
-    conf_data = json.loads(match.group(1))
-
-    # Debug-Ausgabe für die Logs
-    print("Verfügbare confData Schlüssel:", list(conf_data.keys()))
+    conf_text = match.group(1)
+    conf_data = json.loads(conf_text)
 
     prayer_names = ["Fajr", "Shuruk", "Dhuhr", "Asr", "Maghrib", "Isha"]
     times_dict = {}
 
-    # 1. Prüfen, ob 'times' direkt als Liste/Array existiert
-    times_data = conf_data.get("times", [])
-    today_day_idx = datetime.now().day - 1
+    # Extrahiere alle echten Uhrzeiten im Format HH:MM aus dem gesamten confData-Block
+    all_times = re.findall(r'"(\d{2}:\d{2})"', conf_text)
 
-    if isinstance(times_data, list) and len(times_data) > 0:
-      if today_day_idx < len(times_data):
-        day_entry = times_data[today_day_idx]
-        if isinstance(day_entry, list) and len(day_entry) >= len(prayer_names):
-          for idx, name in enumerate(prayer_names):
-            times_dict[name] = day_entry[idx]
+    # Filtere Duplikate und ungültige Werte heraus, behalte aber die Reihenfolge
+    seen = set()
+    unique_times = []
+    for t in all_times:
+      if t not in seen:
+        seen.add(t)
+        unique_times.append(t)
 
-    # 2. Falls times_dict leer ist, prüfen wir alternative Schlüssel in confData
-    if not times_dict:
-      for name in prayer_names:
-        # Suche nach keys die den Gebetsnamen enthalten
-        for k, v in conf_data.items():
-          if name.lower() in k.lower() and isinstance(v, str):
-            times_dict[name] = v
-
-    # Fallback, falls absolut nichts gefunden wurde
-    if not times_dict:
+    # Mawaqit listet die täglichen Gebetszeiten im Array auf.
+    # Wir nehmen die ersten 6 passenden Zeiten für den aktuellen Tag.
+    if len(unique_times) >= 6:
+      # Manchmal stehen im confData zuerst die Azhan-Zeiten für heute
+      for idx, name in enumerate(prayer_names):
+        times_dict[name] = unique_times[idx]
+    else:
       for name in prayer_names:
         times_dict[name] = "N/A"
 
     prayer_data = {
-        "mosque": conf_data.get("name", "Al-Birr Schwalbach"),
+        "mosque": conf_data.get("name", "مسجد البر - Schwalbach"),
         "source_url": URL,
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "date_gregorian": datetime.now().strftime("%Y-%m-%d"),
@@ -77,12 +72,13 @@ def fetch_prayer_times():
     return prayer_data
 
   except Exception as e:
-    print(f"Fehler beim Parsen des JSON aus confData: {e}")
+    print(f"Fehler beim Parsen: {e}")
     return None
 
 
 def save_to_json(data):
-  if not data:
+  if not data or not data.get("times"):
+    print("Keine gültigen Zeiten gefunden. JSON wird nicht überschrieben.")
     return
   with open(JSON_FILE, "w", encoding="utf-8") as f:
     json.dump(data, f, ensure_ascii=False, indent=4)
