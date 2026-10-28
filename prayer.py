@@ -20,7 +20,7 @@ def download_and_save_txt():
     response = requests.get(URL, headers=headers, timeout=20)
     response.raise_for_status()
 
-    # Speichert den Quelltext als Textdatei
+    # Speichert die Website als reine Textdatei im Projektordner
     with open(TXT_FILE, "w", encoding="utf-8") as f:
       f.write(response.text)
     print(f"Website erfolgreich als '{TXT_FILE}' gespeichert.")
@@ -34,78 +34,53 @@ def extract_prayer_times(text_content):
   if not text_content:
     return None
 
-  # Robuste Suche nach confData im Skript-Bereich
-  match = re.search(r"let\s+confData\s*=\s*(\{.*?\});\n", text_content, re.DOTALL)
-  if not match:
-    # Fallback für var confData
-    match = re.search(
-        r"var\s+confData\s*=\s*(\{.*?\});\n", text_content, re.DOTALL
-    )
+  times_dict = {
+      "Fajr": "N/A",
+      "Shuruk": "N/A",
+      "Dhuhr": "N/A",
+      "Asr": "N/A",
+      "Maghrib": "N/A",
+      "Isha": "N/A",
+  }
 
-  if not match:
-    print(
-        "Fehler: 'confData' konnte im heruntergeladenen Text nicht gefunden"
-        " werden."
-    )
-    return None
+  # 1. Extrahiere direkt das "times"-Array (Enthält: Fajr, Dhuhr, Asr, Maghrib, Isha)
+  # Beispiel im Quelltext: "times":["05:18","12:14","14:47","17:19","18:48"]
+  times_match = re.search(r'"times"\s*:\s*\[(.*?)\]', text_content)
+  if times_match:
+    raw_times = times_match.group(1)
+    # Alle Zeiten im Format "HH:MM" herausfiltern
+    extracted_times = re.findall(r'"([0-2]\d:[0-5]\d)"', raw_times)
 
-  try:
-    # Wir parsen das JSON-Objekt sicher
-    conf_data = json.loads(match.group(1))
+    if len(extracted_times) >= 5:
+      times_dict["Fajr"] = extracted_times[0]
+      times_dict["Dhuhr"] = extracted_times[1]
+      times_dict["Asr"] = extracted_times[2]
+      times_dict["Maghrib"] = extracted_times[3]
+      times_dict["Isha"] = extracted_times[4]
 
-    today_day_str = str(datetime.now().day)
-    calendar = conf_data.get("calendar", [])
+  # 2. Extrahiere direkt den "shuruq" (Sonnenaufgang)
+  # Beispiel im Quelltext: "shuruq":"07:00"
+  shuruq_match = re.search(r'"shuruq"\s*:\s*"([0-2]\d:[0-5]\d)"', text_content)
+  if shuruq_match:
+    times_dict["Shuruk"] = shuruq_match.group(1)
 
-    times_dict = {}
-    found_day_times = None
+  # Moschee-Namen ermitteln
+  name_match = re.search(r'"name"\s*:\s*"([^"]+)"', text_content)
+  mosque_name = (
+      name_match.group(1).encode().decode("unicode-escape")
+      if name_match
+      else "مسجد البر - Schwalbach"
+  )
 
-    # Suche nach dem heutigen Tag im Kalender-Array (z.B. {"28": [...]})
-    if isinstance(calendar, list):
-      for entry in calendar:
-        if isinstance(entry, dict) and today_day_str in entry:
-          found_day_times = entry[today_day_str]
-          break
-    elif isinstance(calendar, dict):
-      if today_day_str in calendar:
-        found_day_times = calendar[today_day_str]
+  prayer_data = {
+      "mosque": mosque_name,
+      "source_url": URL,
+      "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+      "date_gregorian": datetime.now().strftime("%Y-%m-%d"),
+      "times": times_dict,
+  }
 
-    # Kalender-Struktur: [Fajr, Iqama_Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha]
-    if found_day_times and len(found_day_times) >= 7:
-      times_dict = {
-          "Fajr": found_day_times[0],
-          "Shuruk": found_day_times[2],
-          "Dhuhr": found_day_times[3],
-          "Asr": found_day_times[4],
-          "Maghrib": found_day_times[5],
-          "Isha": found_day_times[6],
-      }
-    else:
-      # Fallback auf die direkten Tageswerte im confData
-      times_array = conf_data.get("times", [])
-      shuruq_time = conf_data.get("shuruq", "N/A")
-
-      times_dict = {
-          "Fajr": times_array[0] if len(times_array) > 0 else "N/A",
-          "Shuruk": shuruq_time,
-          "Dhuhr": times_array[1] if len(times_array) > 1 else "N/A",
-          "Asr": times_array[2] if len(times_array) > 2 else "N/A",
-          "Maghrib": times_array[3] if len(times_array) > 3 else "N/A",
-          "Isha": times_array[4] if len(times_array) > 4 else "N/A",
-      }
-
-    prayer_data = {
-        "mosque": conf_data.get("name", "مسجد البر - Schwalbach"),
-        "source_url": URL,
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "date_gregorian": datetime.now().strftime("%Y-%m-%d"),
-        "times": times_dict,
-    }
-
-    return prayer_data
-
-  except Exception as e:
-    print(f"Fehler beim Parsen der confData: {e}")
-    return None
+  return prayer_data
 
 
 def save_to_json(data):
