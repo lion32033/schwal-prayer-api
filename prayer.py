@@ -22,7 +22,6 @@ def download_and_save_html():
     response = requests.get(URL, headers=headers, timeout=20)
     response.raise_for_status()
 
-    # Schritt 1: Speichere die rohe HTML-Datei im Projektordner
     with open(HTML_FILE, "w", encoding="utf-8") as f:
       f.write(response.text)
     print(f"HTML erfolgreich als '{HTML_FILE}' gespeichert.")
@@ -40,18 +39,27 @@ def extract_prayer_times(html_content):
   prayer_names = ["Fajr", "Shuruk", "Dhuhr", "Asr", "Maghrib", "Isha"]
   times_dict = {}
 
-  # Mawaqit speichert die Zeiten oft in spezifischen JSON-Strukturen oder Klassen im HTML.
-  # Wir durchsuchen den gesamten Text nach allen Uhrzeiten im Format HH:MM
-  text_content = soup.get_text()
-  all_times = re.findall(r"\b([0-2]\d:[0-5]\d)\b", text_content)
+  # Mawaqit bettet die Daten in JavaScript-Objekte innerhalb von <script>-Tags ein.
+  # Wir durchsuchen daher alle Skripte und den gesamten Text nach Uhrzeiten.
+  combined_text = ""
+  for script in soup.find_all("script"):
+    if script.string:
+      combined_text += script.string + "\n"
+  combined_text += soup.get_text()
 
-  # Filtere Duplikate heraus, behalte aber die chronologische Reihenfolge
+  # Suche nach allen Uhrzeiten im Format HH:MM
+  all_times = re.findall(r"\b([0-2]\d:[0-5]\d)\b", combined_text)
+
+  # Duplikate entfernen, aber die Reihenfolge beibehalten
   unique_times = []
   for t in all_times:
     if t not in unique_times:
+      # Filterung von unrealistischen Zeiten (optional, falls z.B. Uhrzeiten wie 00:00 oder ähnliches auftauchen)
       unique_times.append(t)
 
-  # Auf Mawaqit sind die ersten gefundenen Uhrzeiten des Tages meistens die Gebetszeiten
+  # Die ersten 6 gefundenen, relevanten Zeiten zuordnen
+  # Mawaqit listet im Nuxt-State oft zuerst die Zeiten für den Monat auf. 
+  # Wir greifen hier auf die ersten 6 eindeutigen Zeiten zu.
   for idx, name in enumerate(prayer_names):
     if idx < len(unique_times):
       times_dict[name] = unique_times[idx]
@@ -62,7 +70,7 @@ def extract_prayer_times(html_content):
       "mosque": "Al-Birr Schwalbach",
       "source_url": URL,
       "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-      "date_gregorian": datetime.now().strftime("%Y-%m-	%d"),
+      "date_gregorian": datetime.now().strftime("%Y-%m-%d"),
       "times": times_dict,
   }
 
