@@ -20,7 +20,7 @@ def download_and_save_txt():
     response = requests.get(URL, headers=headers, timeout=20)
     response.raise_for_status()
 
-    # Quelltext als Textdatei speichern
+    # Speichert den Quelltext als Textdatei
     with open(TXT_FILE, "w", encoding="utf-8") as f:
       f.write(response.text)
     print(f"Website erfolgreich als '{TXT_FILE}' gespeichert.")
@@ -34,7 +34,7 @@ def extract_prayer_times(text_content):
   if not text_content:
     return None
 
-  # confData Objekt aus dem HTML/Text extrahieren
+  # Suchen nach dem confData-Objekt im Text
   match = re.search(r"var\s+confData\s*=\s*(\{.*?\});", text_content, re.DOTALL)
   if not match:
     print(
@@ -44,27 +44,47 @@ def extract_prayer_times(text_content):
     return None
 
   try:
-    conf_data = json.loads(match.group(1))
+    conf_text = match.group(1)
+    # Da das JSON im Quelltext manchmal unvollständig abgeschnitten sein kann,
+    # säubern wir es oder laden es direkt per eval/json.
+    # Bei Mawaqit ist confData ein valides JSON-Objekt.
+    conf_data = json.loads(conf_text)
 
-    today_str = str(datetime.now().day)
-    calendar = conf_data.get("calendar", {})
+    # Ermittle den heutigen Tag als String (z.B. "28")
+    today_day_str = str(datetime.now().day)
+    calendar = conf_data.get("calendar", [])
 
-    # Falls der Monatskalender für den heutigen Tag existiert
-    if isinstance(calendar, dict) and today_str in calendar:
-      # Format im Kalender: [Fajr, Iqama, Shuruq, Dhuhr, Asr, Maghrib, Isha]
-      day_times = calendar[today_str]
+    times_dict = {}
+
+    # Mawaqit speichert den Kalender oft als Liste von Dictionaries oder als Array.
+    # Schauen wir nach dem heutigen Tag im Kalender:
+    found_day_times = None
+    if isinstance(calendar, list):
+      for entry in calendar:
+        # entry ist z.B. {"1": ["06:25", ...]}
+        if isinstance(entry, dict) and today_day_str in entry:
+          found_day_times = entry[today_day_str]
+          break
+    elif isinstance(calendar, dict):
+      if today_day_str in calendar:
+        found_day_times = calendar[today_day_str]
+
+    # Wenn der Kalender-Eintrag für heute gefunden wurde:
+    # Struktur im Kalender-Array: [Fajr, Iqama_Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha]
+    if found_day_times and len(found_day_times) >= 7:
       times_dict = {
-          "Fajr": day_times[0],
-          "Shuruk": day_times[2],
-          "Dhuhr": day_times[3],
-          "Asr": day_times[4],
-          "Maghrib": day_times[5],
-          "Isha": day_times[6],
+          "Fajr": found_day_times[0],
+          "Shuruk": found_day_times[2],
+          "Dhuhr": found_day_times[3],
+          "Asr": found_day_times[4],
+          "Maghrib": found_day_times[5],
+          "Isha": found_day_times[6],
       }
     else:
-      # Fallback auf die direkten Tageswerte
+      # Fallback auf die allgemeinen heutigen Zeiten im confData
       times_array = conf_data.get("times", [])
       shuruq_time = conf_data.get("shuruq", "N/A")
+
       times_dict = {
           "Fajr": times_array[0] if len(times_array) > 0 else "N/A",
           "Shuruk": shuruq_time,
@@ -85,7 +105,7 @@ def extract_prayer_times(text_content):
     return prayer_data
 
   except Exception as e:
-    print(f"Fehler beim Parsen der Daten: {e}")
+    print(f"Fehler beim Parsen der confData: {e}")
     return None
 
 
