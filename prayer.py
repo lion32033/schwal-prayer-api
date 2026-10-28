@@ -34,8 +34,14 @@ def extract_prayer_times(text_content):
   if not text_content:
     return None
 
-  # Suchen nach dem confData-Objekt im Text
-  match = re.search(r"var\s+confData\s*=\s*(\{.*?\});", text_content, re.DOTALL)
+  # Robuste Suche nach confData im Skript-Bereich
+  match = re.search(r"let\s+confData\s*=\s*(\{.*?\});\n", text_content, re.DOTALL)
+  if not match:
+    # Fallback für var confData
+    match = re.search(
+        r"var\s+confData\s*=\s*(\{.*?\});\n", text_content, re.DOTALL
+    )
+
   if not match:
     print(
         "Fehler: 'confData' konnte im heruntergeladenen Text nicht gefunden"
@@ -44,24 +50,18 @@ def extract_prayer_times(text_content):
     return None
 
   try:
-    conf_text = match.group(1)
-    # Da das JSON im Quelltext manchmal unvollständig abgeschnitten sein kann,
-    # säubern wir es oder laden es direkt per eval/json.
-    # Bei Mawaqit ist confData ein valides JSON-Objekt.
-    conf_data = json.loads(conf_text)
+    # Wir parsen das JSON-Objekt sicher
+    conf_data = json.loads(match.group(1))
 
-    # Ermittle den heutigen Tag als String (z.B. "28")
     today_day_str = str(datetime.now().day)
     calendar = conf_data.get("calendar", [])
 
     times_dict = {}
-
-    # Mawaqit speichert den Kalender oft als Liste von Dictionaries oder als Array.
-    # Schauen wir nach dem heutigen Tag im Kalender:
     found_day_times = None
+
+    # Suche nach dem heutigen Tag im Kalender-Array (z.B. {"28": [...]})
     if isinstance(calendar, list):
       for entry in calendar:
-        # entry ist z.B. {"1": ["06:25", ...]}
         if isinstance(entry, dict) and today_day_str in entry:
           found_day_times = entry[today_day_str]
           break
@@ -69,8 +69,7 @@ def extract_prayer_times(text_content):
       if today_day_str in calendar:
         found_day_times = calendar[today_day_str]
 
-    # Wenn der Kalender-Eintrag für heute gefunden wurde:
-    # Struktur im Kalender-Array: [Fajr, Iqama_Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha]
+    # Kalender-Struktur: [Fajr, Iqama_Fajr, Shuruq, Dhuhr, Asr, Maghrib, Isha]
     if found_day_times and len(found_day_times) >= 7:
       times_dict = {
           "Fajr": found_day_times[0],
@@ -81,7 +80,7 @@ def extract_prayer_times(text_content):
           "Isha": found_day_times[6],
       }
     else:
-      # Fallback auf die allgemeinen heutigen Zeiten im confData
+      # Fallback auf die direkten Tageswerte im confData
       times_array = conf_data.get("times", [])
       shuruq_time = conf_data.get("shuruq", "N/A")
 
