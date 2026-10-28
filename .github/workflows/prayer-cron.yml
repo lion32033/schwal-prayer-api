@@ -2,8 +2,8 @@ name: Daily Prayer Times Scraper
 
 on:
   schedule:
-    - cron: '1 0 * * *'  # Läuft jeden Tag um 00:01 UTC
-  workflow_dispatch:      # Erlaubt manuellen Start über den Reiter "Actions"
+    - cron: '0 0 * * *'  # Läuft jeden Tag um 00:00 Uhr
+  workflow_dispatch:      # Erlaubt jederzeit den manuellen Start über GitHub
 
 jobs:
   update-prayer-times:
@@ -23,7 +23,7 @@ jobs:
       - name: Abhängigkeiten installieren
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests
 
       - name: Skript ausführen
         run: python prayer.py
@@ -32,5 +32,5 @@ jobs:
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add prayer-schwal.json mawaqit_page.html
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Update prayer times and HTML [skip ci]" && git push)
+          git add prayer-schwal.json mawaqit_page.txt
+          git diff --quiet && git diff --staged --quiet || (git commit -m "Automated daily update: prayer times & text [skip ci]" && git push)
