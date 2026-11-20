@@ -1,14 +1,14 @@
 {
     "mosque": "مسجد البر - Schwalbach",
     "source_url": "https://mawaqit.net/de/m/albir-schwalbach",
-    "updated_at": "2026-11-19 06:06:55",
-    "date_gregorian": "2026-11-19",
+    "updated_at": "2026-11-20 05:54:21",
+    "date_gregorian": "2026-11-20",
     "times": {
-        "Fajr": "05:50",
-        "Shuruk": "07:38",
+        "Fajr": "05:52",
+        "Shuruk": "07:39",
         "Dhuhr": "12:16",
-        "Asr": "14:19",
-        "Maghrib": "16:44",
-        "Isha": "18:18"
+        "Asr": "14:18",
+        "Maghrib": "16:42",
+        "Isha": "18:17"
     }
 }
